@@ -1,6 +1,6 @@
-kubernetes_version: 1.34.1
+kubernetes_version: 1.34.2
 containerd_version: 2.2.0
-runc_version: 1.3.3
+runc_version: 1.4.0
 cni_plugins_version: 1.8.0
 crictl_version: 1.34.0
 cilium_cli_version: 0.18.8
