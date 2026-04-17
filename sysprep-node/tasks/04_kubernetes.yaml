@@ -1,64 +1,58 @@
 ---
-- name: Install packages
+- name: Install prerequisite packages
   apt:
     name: '{{ item }}'
     state: latest
     update_cache: True
   loop:
     - apt-transport-https
-    # - ca-certificates
-    # - curl
-    # - gnupg
-    - conntrack
-    # - ethtool
-    - ipvsadm
-    # - jq
-    - socat
-    - pigz
-    - chrony
-    # - iptables
+    - ca-certificates
+    - curl
+    - gpg
 
-- name: Install kubeadm
-  get_url:
-    url: "https://dl.k8s.io/release/v{{ kubernetes_version }}/bin/{{ node_os }}/{{ node_arch }}/kubeadm"
-    dest: /usr/bin/kubeadm
-    mode: 0755
-
-- name: Install kubelet
-  get_url:
-    url: "https://dl.k8s.io/release/v{{ kubernetes_version }}/bin/{{ node_os }}/{{ node_arch }}/kubelet"
-    dest: /usr/bin/kubelet
-    mode: 0755
-
-- name: Install kubectl
-  get_url:
-    url: "https://dl.k8s.io/release/v{{ kubernetes_version }}/bin/{{ node_os }}/{{ node_arch }}/kubectl"
-    dest: /usr/bin/kubectl
-    mode: 0755
-
-- name: Send over kubelet.service
-  get_url:
-    url: https://raw.githubusercontent.com/kubernetes/release/v0.16.5/cmd/krel/templates/latest/kubelet/kubelet.service
-    dest: /etc/systemd/system/kubelet.service
-
-- name: Create /etc/systemd/system/kubelet.service.d
+- name: Create /etc/apt/keyrings directory
   file:
-    path: /etc/systemd/system/kubelet.service.d
+    path: /etc/apt/keyrings
     state: directory
+    mode: '0755'
 
-- name: Send over the kubeadm kubelet addition
+- name: Download Kubernetes GPG key
   get_url:
-    url: https://raw.githubusercontent.com/kubernetes/release/v0.16.5/cmd/krel/templates/latest/kubeadm/10-kubeadm.conf
-    dest: /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+    url: "https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/Release.key"
+    dest: /tmp/kubernetes-release.key
 
-- name: Create /etc/sysconfig folder
-  file:
-    path: /etc/sysconfig
-    state: directory
+- name: Dearmor Kubernetes GPG key
+  command: gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg /tmp/kubernetes-release.key
+  args:
+    creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+- name: Add Kubernetes apt repository
+  apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/ /"
+    state: present
+    filename: kubernetes
+
+- name: Install kubeadm, kubelet, kubectl
+  apt:
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+    state: present
+    update_cache: True
+
+- name: Hold kubeadm, kubelet, kubectl at current version
+  dpkg_selections:
+    name: '{{ item }}'
+    selection: hold
+  loop:
+    - kubelet
+    - kubeadm
+    - kubectl
 
 - name: Send over kubelet extra args addition
   copy:
-    dest: /etc/sysconfig/kubelet
+    dest: /etc/default/kubelet
     content: |-
       KUBELET_EXTRA_ARGS="--image-credential-provider-bin-dir=/usr/local/bin --image-credential-provider-config=/credential-provider-config.yaml"
   when: docker_hub_user | length > 0 and docker_hub_token | length > 0

@@ -1,4 +1,2 @@
 # README
-The `config.toml` was generated using `containerd config default`.  The important change is in the below block, where `SystemdCgroup` is set to `true`.
-
-The `config-nvidia.toml` was configured from the `config.toml` and then making modifications using instructions from <https://github.com/NVIDIA/k8s-device-plugin#configure-containerd>.
+The `config-nvidia.toml` was configured for use with the NVIDIA device plugin. See <https://github.com/NVIDIA/k8s-device-plugin#configure-containerd> for reference.

@@ -14,11 +14,6 @@
     state: directory
     path: /etc/containerd
 
-- name: Create the containerd config.toml file
-  copy:
-    src: config.toml
-    dest: /etc/containerd/config.toml
-
 - name: Get the systemd service file
   get_url:
     url: "https://raw.githubusercontent.com/containerd/containerd/v{{ containerd_version }}/containerd.service"
@@ -39,5 +34,11 @@
 
 - name: crictl.yaml
   copy:
-    src: crictl.yaml
     dest: /etc/crictl.yaml
+    content: |
+      # see: https://github.com/kubernetes-sigs/cri-tools/blob/master/docs/crictl.md
+      runtime-endpoint: unix:///run/containerd/containerd.sock
+      image-endpoint: unix:///run/containerd/containerd.sock
+      timeout: 2
+      debug: true
+      pull-image-on-create: false
