@@ -58,6 +58,11 @@
       set_fact:
         worker_join_command: "{{ join_cmd_output.stdout }}"
 
+    - name: Set KUBECONFIG for root user
+      lineinfile:
+        path: /root/.bashrc
+        line: "export KUBECONFIG=/etc/kubernetes/admin.conf"
+
 - name: Join worker nodes to cluster
   hosts: worker_nodes
   gather_facts: false
