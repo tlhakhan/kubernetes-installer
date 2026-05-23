@@ -104,3 +104,8 @@
     name: kubelet
     state: started
     enabled: yes
+
+- name: Set k=kubectl alias for all users
+  copy:
+    dest: /etc/profile.d/kubectl-alias.sh
+    content: "alias k=kubectl\n"
