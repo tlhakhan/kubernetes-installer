@@ -1,3 +1,10 @@
+{% if controlplane_schedulable %}
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+skipPhases:
+  - mark-control-plane
+{% endif %}
 ---
 apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
