@@ -7,3 +7,4 @@ runc_version: 1.4.2
 cni_plugins_version: 1.9.1
 crictl_version: 1.36.0
 cilium_cli_version: 0.19.4
+etcd_version: 3.6.11

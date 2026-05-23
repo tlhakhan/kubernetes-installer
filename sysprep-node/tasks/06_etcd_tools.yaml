@@ -1,0 +1,14 @@
+---
+#
+# Install etcdctl and etcdutl
+#
+- name: Unarchive etcd tools tarball
+  unarchive:
+    src: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}/etcd-v{{ etcd_version }}-{{ node_os }}-{{ node_arch }}.tar.gz"
+    dest: /usr/local/bin
+    remote_src: yes
+    extra_opts:
+      - "--strip-components=1"
+      - "--wildcards"
+      - "*/etcdctl"
+      - "*/etcdutl"

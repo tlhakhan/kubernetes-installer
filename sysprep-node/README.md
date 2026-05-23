@@ -13,6 +13,7 @@ Runs the following tasks in order:
 | `03_cni_plugins` | Installs CNI plugins |
 | `04_kubernetes` | Adds the Kubernetes apt repo, installs and holds kubeadm, kubelet, kubectl |
 | `05_cilium` | Installs the Cilium CLI |
+| `06_etcd_tools` | Installs etcdctl and etcdutl |
 
 ## Versions
 
@@ -26,6 +27,7 @@ Defined in `vars.yaml`:
 | CNI plugins | 1.9.1 |
 | crictl | 1.35.0 |
 | Cilium CLI | 0.19.2 |
+| etcd | 3.6.11 |
 
 ## Usage
 

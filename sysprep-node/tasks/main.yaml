@@ -16,3 +16,6 @@
 
 - name: Install Cilium CLI
   include_tasks: 05_cilium.yaml
+
+- name: Install etcd tools
+  include_tasks: 06_etcd_tools.yaml
