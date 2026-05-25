@@ -95,6 +95,22 @@
         defaultCacheDuration: "1h" # Cache credentials for 1 hour
   when: docker_hub_user | length > 0 and docker_hub_token | length > 0
 
+- name: Create kubelet systemd drop-in directory
+  file:
+    path: /etc/systemd/system/kubelet.service.d
+    state: directory
+    mode: '0755'
+  when: tailscale_enabled | default(false)
+
+- name: Add tailscaled ordering drop-in for kubelet
+  copy:
+    dest: /etc/systemd/system/kubelet.service.d/10-tailscale.conf
+    content: |
+      [Unit]
+      After=tailscaled.service
+      Wants=tailscaled.service
+  when: tailscale_enabled | default(false)
+
 - name: Reload systemd
   systemd:
     daemon_reload: yes
