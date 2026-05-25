@@ -11,7 +11,7 @@ all:
     cilium_cli_version: 0.19.4
     etcd_version: 3.6.11
 
-    tailscale_enabled: false
+    tailscale_enabled: true
     tailscale_auth_key: ""
 
   children:

@@ -11,6 +11,14 @@
   vars_files:
     - overrides.yaml
 
+  pre_tasks:
+    - name: Assert tailscale_auth_key is set when tailscale is enabled
+      assert:
+        that:
+          - tailscale_auth_key | length > 0
+        fail_msg: "tailscale_enabled is true but tailscale_auth_key is empty — set it in overrides.yaml"
+      when: tailscale_enabled | default(false)
+
   tasks:
     - name: Include tasks
       include_tasks: tasks/main.yaml
