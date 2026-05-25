@@ -11,4 +11,5 @@ all:
           controlplane_schedulable: true
 
     worker_nodes:
-      hosts: {}
+      hosts:
+        kube-2.local: {}

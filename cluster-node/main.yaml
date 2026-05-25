@@ -72,25 +72,20 @@
         delay: 5
         timeout: 120
 
-    # admin.conf uses 127.0.0.1 or the hostname as server. Remote tailnet peers
-    # cannot reach that. Patch to the Tailscale IP so the kubeconfig works from
-    # any node on the tailnet without /etc/hosts manipulation.
-    - name: Read admin.conf
-      slurp:
-        src: /etc/kubernetes/admin.conf
-      register: admin_conf_raw
-
-    - name: Write Tailscale-patched kubeconfig
-      copy:
-        dest: /etc/kubernetes/admin-tailscale.conf
-        content: "{{ admin_conf_raw.content | b64decode | regex_replace('server: https://[^\n]+', 'server: https://' + tailscale_ip + ':6443') }}"
-        mode: '0600'
-
     - name: Set KUBECONFIG for root user
       lineinfile:
         path: /root/.bashrc
         regexp: '^export KUBECONFIG='
-        line: "export KUBECONFIG=/etc/kubernetes/admin-tailscale.conf"
+        line: "export KUBECONFIG=/etc/kubernetes/admin.conf"
+
+    - name: Get tailscale0 MTU
+      shell: cat /sys/class/net/tailscale0/mtu
+      register: tailscale_mtu_raw
+      changed_when: false
+
+    - name: Set Cilium MTU (tailscale0 MTU minus 50 bytes VXLAN overhead)
+      set_fact:
+        cilium_mtu: "{{ tailscale_mtu_raw.stdout | trim | int - 50 }}"
 
     - name: Install Cilium
       command: >-
@@ -102,8 +97,9 @@
         --set kubeProxyReplacement=true
         --set k8sServiceHost={{ tailscale_ip }}
         --set k8sServicePort=6443
+        --set MTU={{ cilium_mtu }}
       environment:
-        KUBECONFIG: /etc/kubernetes/admin-tailscale.conf
+        KUBECONFIG: /etc/kubernetes/admin.conf
       args:
         creates: /etc/cni/net.d/05-cilium.conflist
 
@@ -111,7 +107,7 @@
       command: cilium status --wait
       changed_when: false
       environment:
-        KUBECONFIG: /etc/kubernetes/admin-tailscale.conf
+        KUBECONFIG: /etc/kubernetes/admin.conf
 
     - name: Generate worker join command
       command: kubeadm token create --print-join-command
@@ -156,7 +152,7 @@
         kubectl get nodes
         -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}'
       environment:
-        KUBECONFIG: /etc/kubernetes/admin-tailscale.conf
+        KUBECONFIG: /etc/kubernetes/admin.conf
       register: node_ips_output
       changed_when: false
 

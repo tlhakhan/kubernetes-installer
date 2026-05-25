@@ -18,3 +18,4 @@ all:
     kubernetes_nodes:
       hosts:
         kube-1.local: {}
+        kube-2.local: {}
