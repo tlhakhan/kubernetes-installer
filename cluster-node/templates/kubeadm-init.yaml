@@ -1,23 +1,43 @@
-{% if controlplane_schedulable %}
 ---
 apiVersion: kubeadm.k8s.io/v1beta4
 kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: "{{ tailscale_ip }}"
+  bindPort: 6443
+nodeRegistration:
+  kubeletExtraArgs:
+    # kubeadm writes this to /var/lib/kubelet/kubeadm-flags.env so it
+    # persists across restarts. Without it, kubelet registers the eth0
+    # address instead of the Tailscale interface.
+    - name: node-ip
+      value: "{{ tailscale_ip }}"
 skipPhases:
+  # Cilium replaces kube-proxy via kubeProxyReplacement=true.
+  # Installing kube-proxy alongside Cilium in full replacement mode causes conflicts.
+  - addon/kube-proxy
+{% if controlplane_schedulable %}
+  # Skipping mark-control-plane prevents the NoSchedule taint, allowing
+  # workload pods to run on this node.
   - mark-control-plane
 {% endif %}
 ---
 apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
+kubernetesVersion: "v{{ kubernetes_version }}.0"
+# Workers use this address for the join apiServerEndpoint. Must be the
+# Tailscale IP — hostname resolution is not available without MagicDNS.
+controlPlaneEndpoint: "{{ tailscale_ip }}:6443"
+networking:
+  # These subnets must not overlap 100.64.0.0/10 (Tailscale CGNAT range).
+  # 10.244.0.0/16 and 10.96.0.0/12 are both safe.
+  podSubnet: "10.244.0.0/16"
+  serviceSubnet: "10.96.0.0/12"
 apiServer:
   certSANs:
-    - "{{ cluster_name }}"
-    - "127.0.1.1"
     - "127.0.0.1"
-clusterName: "{{ cluster_name }}"
-controlPlaneEndpoint: "{{ cluster_name }}:6443"
-...
----
-apiVersion: kubeproxy.config.k8s.io/v1alpha1
-kind: KubeProxyConfiguration
-mode: "nftables"
+    - "localhost"
+    # The Tailscale IP is the only external address clients will connect through.
+    # If a new control plane node is added later, its Tailscale IP will not be
+    # in this cert — run `kubeadm certs renew apiserver` with updated SANs.
+    - "{{ tailscale_ip }}"
 ...

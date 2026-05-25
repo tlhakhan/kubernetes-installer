@@ -1,6 +1,0 @@
-[all:vars]
-controlplane_schedulable=false
-
-[bootstrap_node]
-
-[worker_nodes]

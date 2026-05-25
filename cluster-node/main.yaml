@@ -1,86 +1,174 @@
 #!/usr/bin/env ansible-playbook
 ---
-- name: Setup Kubernetes bootstrap node
+# Play 1: Discover Tailscale IP on every node and run pre-flight assertions.
+# Runs across all hosts first so hostvars['tailscale_ip'] is populated
+# before any kubeadm operation in the plays below.
+- name: Discover Tailscale IPs and assert pre-flight conditions
+  hosts: all
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Get Tailscale IPv4 address
+      command: tailscale ip -4
+      register: tailscale_ip_raw
+      changed_when: false
+
+    - name: Set tailscale_ip fact
+      set_fact:
+        tailscale_ip: "{{ tailscale_ip_raw.stdout | trim }}"
+
+    # 100.64.0.0/10 = 100.64.0.0 – 100.127.255.255 (second octet 64–127)
+    # Without --node-ip, kubelet picks eth0 and registers the wrong interface.
+    # kubeadm writes this flag to /var/lib/kubelet/kubeadm-flags.env via
+    # nodeRegistration.kubeletExtraArgs, so it persists across kubelet restarts.
+    - name: Assert Tailscale IP is in 100.64.0.0/10
+      assert:
+        that:
+          - tailscale_ip is match('^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\.')
+        fail_msg: "{{ tailscale_ip }} is not in the Tailscale CGNAT range 100.64.0.0/10"
+
+    - name: Ping each peer's Tailscale IP
+      command: "ping -c 1 -W 2 {{ hostvars[item]['tailscale_ip'] }}"
+      loop: "{{ ansible_play_hosts | difference([inventory_hostname]) }}"
+      register: peer_ping_results
+      ignore_errors: true
+      changed_when: false
+      when: ansible_play_hosts | difference([inventory_hostname]) | length > 0
+
+    - name: Assert at least one tailnet peer is reachable
+      assert:
+        that:
+          - peer_ping_results.results | selectattr('rc', 'equalto', 0) | list | length > 0
+        fail_msg: "No tailnet peers reachable from {{ inventory_hostname }} ({{ tailscale_ip }})"
+      when: ansible_play_hosts | difference([inventory_hostname]) | length > 0
+
+# Play 2: Initialise the Kubernetes control plane on the bootstrap node.
+- name: Bootstrap Kubernetes control plane
   hosts: bootstrap_node
   gather_facts: false
   become: true
-  vars:
-    cilium_version: "1.19.3"
   tasks:
-    - name: Get bootstrap node IP details
-      setup:
-        gather_subset:
-          - default_ipv4
-
-    - name: Set cluster name
-      set_fact:
-        cluster_name: '{{ inventory_hostname }}'
-
     - name: Pull control plane images
       command: kubeadm config images pull
-      changed_when: false # idempotent
+      changed_when: false
 
-    - name: Send over kubeadm config file
+    - name: Template kubeadm init config
       template:
         src: kubeadm-init.yaml
         dest: /var/tmp/kubeadm-init.yaml
 
-    - name: Initialize Kubernetes
-      shell: "kubeadm init --config /var/tmp/kubeadm-init.yaml > /var/log/kubeadm-init-output.log"
+    - name: Initialize Kubernetes cluster
+      command: kubeadm init --config /var/tmp/kubeadm-init.yaml
       args:
         creates: /etc/kubernetes/admin.conf
 
-    - name: Wait for port to be ready
+    # Verify API server is listening on the Tailscale interface, not just loopback.
+    # If tailscaled stops after init, this address becomes unreachable and the
+    # cluster loses all peer connectivity (Tailscale-down = cluster-down).
+    - name: Wait for API server on Tailscale interface
       wait_for:
-        host: 127.0.0.1
+        host: "{{ tailscale_ip }}"
         port: 6443
         delay: 5
+        timeout: 120
 
-    - name: Install Cilium to cluster
-      command: "cilium install --version {{ cilium_version }}"
-      environment:
-        KUBECONFIG: /etc/kubernetes/admin.conf
-      args:
-        creates: /etc/cni/net.d/05-cilium.conflist
+    # admin.conf uses 127.0.0.1 or the hostname as server. Remote tailnet peers
+    # cannot reach that. Patch to the Tailscale IP so the kubeconfig works from
+    # any node on the tailnet without /etc/hosts manipulation.
+    - name: Read admin.conf
+      slurp:
+        src: /etc/kubernetes/admin.conf
+      register: admin_conf_raw
 
-    - name: Wait for Cilium installation to complete
-      command: "cilium status --wait"
-      changed_when: false # idempotent
-      environment:
-        KUBECONFIG: /etc/kubernetes/admin.conf
-
-    - name: Get cluster join command for worker nodes
-      command: kubeadm token create --print-join-command
-      changed_when: false # idempotent
-      register: join_cmd_output
-
-    - name: Set cluster join command as host fact
-      set_fact:
-        worker_join_command: "{{ join_cmd_output.stdout }}"
+    - name: Write Tailscale-patched kubeconfig
+      copy:
+        dest: /etc/kubernetes/admin-tailscale.conf
+        content: "{{ admin_conf_raw.content | b64decode | regex_replace('server: https://[^\n]+', 'server: https://' + tailscale_ip + ':6443') }}"
+        mode: '0600'
 
     - name: Set KUBECONFIG for root user
       lineinfile:
         path: /root/.bashrc
-        line: "export KUBECONFIG=/etc/kubernetes/admin.conf"
+        regexp: '^export KUBECONFIG='
+        line: "export KUBECONFIG=/etc/kubernetes/admin-tailscale.conf"
 
+    - name: Install Cilium
+      command: >-
+        cilium install
+        --version {{ cilium_version }}
+        --set ipam.mode=kubernetes
+        --set routingMode=tunnel
+        --set tunnelProtocol=vxlan
+        --set kubeProxyReplacement=true
+        --set k8sServiceHost={{ tailscale_ip }}
+        --set k8sServicePort=6443
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin-tailscale.conf
+      args:
+        creates: /etc/cni/net.d/05-cilium.conflist
+
+    - name: Wait for Cilium to be ready
+      command: cilium status --wait
+      changed_when: false
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin-tailscale.conf
+
+    - name: Generate worker join command
+      command: kubeadm token create --print-join-command
+      changed_when: false
+      register: join_cmd_output
+
+    - name: Parse join token and CA cert hash
+      set_fact:
+        join_token: "{{ join_cmd_output.stdout | regex_search('--token (\\S+)', '\\1') | first }}"
+        join_ca_hash: "{{ join_cmd_output.stdout | regex_search('--discovery-token-ca-cert-hash (\\S+)', '\\1') | first }}"
+
+# Play 3: Join worker nodes to the cluster.
 - name: Join worker nodes to cluster
   hosts: worker_nodes
   gather_facts: false
   become: true
   tasks:
-    - name: Set cluster facts
+    - name: Set cluster join facts from bootstrap node
       set_fact:
-        cluster_name: "{{ hostvars[groups['bootstrap_node'][0]]['cluster_name'] }}"
-        cluster_address: "{{ hostvars[groups['bootstrap_node'][0]]['ansible_facts']['default_ipv4']['address'] }}"
-        cluster_join_command: "{{ hostvars[groups['bootstrap_node'][0]]['worker_join_command'] }}"
+        bootstrap_tailscale_ip: "{{ hostvars[groups['bootstrap_node'][0]]['tailscale_ip'] }}"
+        join_token: "{{ hostvars[groups['bootstrap_node'][0]]['join_token'] }}"
+        join_ca_hash: "{{ hostvars[groups['bootstrap_node'][0]]['join_ca_hash'] }}"
 
-    - name: Add hosts entry for cluster name
-      lineinfile:
-        path: /etc/hosts
-        search_string: '{{ cluster_address }}'
-        line: '{{ cluster_address }} {{ cluster_name }}'
+    - name: Template kubeadm join config
+      template:
+        src: kubeadm-join.yaml
+        dest: /var/tmp/kubeadm-join.yaml
 
     - name: Join cluster as worker node
-      command: '{{ cluster_join_command }}'
+      command: kubeadm join --config /var/tmp/kubeadm-join.yaml
       args:
         creates: /etc/kubernetes/kubelet.conf
+
+# Play 4: Assert all node INTERNAL-IPs are Tailscale addresses.
+- name: Verify node IP registration
+  hosts: bootstrap_node
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Get all node internal IPs
+      shell: >-
+        kubectl get nodes
+        -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}'
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin-tailscale.conf
+      register: node_ips_output
+      changed_when: false
+
+    - name: Assert nodes are registered
+      assert:
+        that:
+          - node_ips_output.stdout_lines | length > 0
+        fail_msg: "No nodes found in cluster"
+
+    - name: Assert all node IPs are in Tailscale CGNAT range 100.64.0.0/10
+      assert:
+        that:
+          - item is match('^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\.')
+        fail_msg: "Node IP {{ item }} is not in 100.64.0.0/10 — check kubelet --node-ip registration"
+      loop: "{{ node_ips_output.stdout_lines | select('match', '.+') | list }}"
