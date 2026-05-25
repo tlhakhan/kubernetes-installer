@@ -1,0 +1,20 @@
+all:
+  vars:
+    docker_hub_user: ""
+    docker_hub_token: ""
+
+    kubernetes_version: 1.34
+    containerd_version: 2.3.1
+    runc_version: 1.4.2
+    cni_plugins_version: 1.9.1
+    crictl_version: 1.36.0
+    cilium_cli_version: 0.19.4
+    etcd_version: 3.6.11
+
+    tailscale_enabled: false
+    tailscale_auth_key: ""
+
+  children:
+    kubernetes_nodes:
+      hosts:
+        kube-1.local: {}

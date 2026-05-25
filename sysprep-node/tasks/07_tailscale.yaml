@@ -1,0 +1,19 @@
+---
+#
+# Install Tailscale
+#
+- name: Run Tailscale install script
+  shell: curl -fsSL https://tailscale.com/install.sh | sh
+  args:
+    creates: /usr/bin/tailscale
+
+- name: Enable and start tailscaled
+  systemd:
+    name: tailscaled
+    enabled: true
+    state: started
+
+- name: Join tailnet
+  command: tailscale up --authkey={{ tailscale_auth_key }} --accept-routes
+  changed_when: true
+  when: tailscale_auth_key != ""

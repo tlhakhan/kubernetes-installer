@@ -19,3 +19,7 @@
 
 - name: Install etcd tools
   include_tasks: 06_etcd_tools.yaml
+
+- name: Install Tailscale
+  include_tasks: 07_tailscale.yaml
+  when: tailscale_enabled | default(false)
