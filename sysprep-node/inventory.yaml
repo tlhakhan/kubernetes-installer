@@ -12,7 +12,7 @@ all:
     etcd_version: 3.6.12
     helm_version: 4.2.2
 
-    tailscale_enabled: true
+    tailscale_enabled: false
     tailscale_auth_key: ""
 
   children:
