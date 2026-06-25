@@ -78,6 +78,22 @@
         regexp: '^export KUBECONFIG='
         line: "export KUBECONFIG=/etc/kubernetes/admin.conf"
 
+    - name: Wait for kubelet serving CSR to appear
+      shell: kubectl get csr -o name | grep -c .
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      register: csr_count
+      retries: 12
+      delay: 5
+      until: csr_count.stdout | int > 0
+      changed_when: false
+
+    - name: Approve pending kubelet serving CSRs
+      shell: kubectl get csr -o name | xargs kubectl certificate approve
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      changed_when: true
+
     - name: Get tailscale0 MTU
       shell: cat /sys/class/net/tailscale0/mtu
       register: tailscale_mtu_raw
@@ -168,3 +184,46 @@
           - item is match('^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\.')
         fail_msg: "Node IP {{ item }} is not in 100.64.0.0/10 — check kubelet --node-ip registration"
       loop: "{{ node_ips_output.stdout_lines | select('match', '.+') | list }}"
+
+# Play 5: Install cluster add-ons via Helm.
+- name: Install cluster add-ons
+  hosts: bootstrap_node
+  gather_facts: false
+  become: true
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  pre_tasks:
+    - name: Load overrides if present
+      include_vars: "{{ item }}"
+      with_first_found:
+        - files:
+            - overrides.yaml
+          skip: true
+  tasks:
+    - name: Add Tailscale Helm repo
+      command: helm repo add tailscale https://pkgs.tailscale.com/helmcharts
+      changed_when: false
+
+    - name: Add metrics-server Helm repo
+      command: helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+      changed_when: false
+
+    - name: Update Helm repos
+      command: helm repo update
+      changed_when: false
+
+    - name: Install Tailscale Operator
+      command: >-
+        helm upgrade --install tailscale-operator tailscale/tailscale-operator
+        --version {{ tailscale_operator_version }}
+        --namespace tailscale
+        --create-namespace
+        --set oauth.clientId={{ tailscale_oauth_client_id }}
+        --set oauth.clientSecret={{ tailscale_oauth_client_secret }}
+        --wait
+      no_log: true
+
+    - name: Install metrics-server
+      command: >-
+        helm upgrade --install metrics-server metrics-server/metrics-server
+        -n kube-system
