@@ -7,6 +7,7 @@ CNI_PLUGINS_VERSION=$(curl -s https://api.github.com/repos/containernetworking/p
 CRICTL_VERSION=$(curl -s https://api.github.com/repos/kubernetes-sigs/cri-tools/releases/latest | jq -r '.tag_name | sub("^v"; "")')
 CILIUM_CLI_VERSION=$(curl -s https://api.github.com/repos/cilium/cilium-cli/releases/latest | jq -r '.tag_name | sub("^v"; "")')
 ETCD_VERSION=$(curl -s https://api.github.com/repos/etcd-io/etcd/releases/latest | jq -r '.tag_name | sub("^v"; "")')
+HELM_VERSION=$(curl -s https://api.github.com/repos/helm/helm/releases/latest | jq -r '.tag_name | sub("^v"; "")')
 
 cat <<eof
 kubernetes_version: $KUBERNETES_VERSION
@@ -16,4 +17,5 @@ cni_plugins_version: $CNI_PLUGINS_VERSION
 crictl_version: $CRICTL_VERSION
 cilium_cli_version: $CILIUM_CLI_VERSION
 etcd_version: $ETCD_VERSION
+helm_version: $HELM_VERSION
 eof

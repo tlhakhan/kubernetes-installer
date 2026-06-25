@@ -1,0 +1,13 @@
+---
+#
+# Install Helm
+#
+- name: Unarchive Helm tarball
+  unarchive:
+    src: "https://get.helm.sh/helm-v{{ helm_version }}-{{ node_os }}-{{ node_arch }}.tar.gz"
+    dest: /usr/local/bin
+    remote_src: yes
+    extra_opts:
+      - "--strip-components=1"
+      - "--wildcards"
+      - "*/helm"
