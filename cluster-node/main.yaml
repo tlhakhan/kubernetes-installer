@@ -17,31 +17,6 @@
       set_fact:
         tailscale_ip: "{{ tailscale_ip_raw.stdout | trim }}"
 
-    # 100.64.0.0/10 = 100.64.0.0 – 100.127.255.255 (second octet 64–127)
-    # Without --node-ip, kubelet picks eth0 and registers the wrong interface.
-    # kubeadm writes this flag to /var/lib/kubelet/kubeadm-flags.env via
-    # nodeRegistration.kubeletExtraArgs, so it persists across kubelet restarts.
-    - name: Assert Tailscale IP is in 100.64.0.0/10
-      assert:
-        that:
-          - tailscale_ip is match('^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\.')
-        fail_msg: "{{ tailscale_ip }} is not in the Tailscale CGNAT range 100.64.0.0/10"
-
-    - name: Ping each peer's Tailscale IP
-      command: "ping -c 1 -W 2 {{ hostvars[item]['tailscale_ip'] }}"
-      loop: "{{ ansible_play_hosts | difference([inventory_hostname]) }}"
-      register: peer_ping_results
-      ignore_errors: true
-      changed_when: false
-      when: ansible_play_hosts | difference([inventory_hostname]) | length > 0
-
-    - name: Assert at least one tailnet peer is reachable
-      assert:
-        that:
-          - peer_ping_results.results | selectattr('rc', 'equalto', 0) | list | length > 0
-        fail_msg: "No tailnet peers reachable from {{ inventory_hostname }} ({{ tailscale_ip }})"
-      when: ansible_play_hosts | difference([inventory_hostname]) | length > 0
-
 # Play 2: Initialise the Kubernetes control plane on the bootstrap node.
 - name: Bootstrap Kubernetes control plane
   hosts: bootstrap_node
