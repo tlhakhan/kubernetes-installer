@@ -78,18 +78,8 @@
         regexp: '^export KUBECONFIG='
         line: "export KUBECONFIG=/etc/kubernetes/admin.conf"
 
-    - name: Wait for kubelet serving CSR to appear
-      shell: kubectl get csr -o name | grep -c .
-      environment:
-        KUBECONFIG: /etc/kubernetes/admin.conf
-      register: csr_count
-      retries: 12
-      delay: 5
-      until: csr_count.stdout | int > 0
-      changed_when: false
-
     - name: Approve pending kubelet serving CSRs
-      shell: kubectl get csr -o name | xargs kubectl certificate approve
+      shell: kubectl get csr -o name | xargs --no-run-if-empty kubectl certificate approve
       environment:
         KUBECONFIG: /etc/kubernetes/admin.conf
       changed_when: true
