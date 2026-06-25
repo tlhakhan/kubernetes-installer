@@ -3,7 +3,7 @@ all:
     docker_hub_user: ""
     docker_hub_token: ""
 
-    kubernetes_version: 1.36
+    kubernetes_version: 1.34
     containerd_version: 2.3.2
     runc_version: 1.5.0
     cni_plugins_version: 1.9.1
@@ -20,3 +20,4 @@ all:
       hosts:
         kube-1.local: {}
         kube-2.local: {}
+        cluster-2.local: {}
