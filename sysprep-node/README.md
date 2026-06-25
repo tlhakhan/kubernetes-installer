@@ -3,8 +3,6 @@ Prepares a clean Ubuntu node for Kubernetes installation.
 
 ## What it does
 
-Runs the following tasks in order:
-
 | Task | Description |
 |---|---|
 | `00_sysprep` | Disables swap, loads kernel modules (`overlay`, `br_netfilter`), sets sysctl parameters |
@@ -14,36 +12,41 @@ Runs the following tasks in order:
 | `04_kubernetes` | Adds the Kubernetes apt repo, installs and holds kubeadm, kubelet, kubectl |
 | `05_cilium` | Installs the Cilium CLI |
 | `06_etcd_tools` | Installs etcdctl and etcdutl |
+| `07_helm` | Installs the Helm CLI |
+| `08_tailscale` | Installs and optionally enables Tailscale |
 
 ## Versions
 
-Defined in `vars.yaml`:
+Defined in `inventory.yaml`:
 
 | Component | Version |
 |---|---|
-| Kubernetes | 1.35 |
-| containerd | 2.2.3 |
-| runc | 1.4.2 |
+| Kubernetes | 1.34 |
+| containerd | 2.3.2 |
+| runc | 1.5.0 |
 | CNI plugins | 1.9.1 |
-| crictl | 1.35.0 |
-| Cilium CLI | 0.19.2 |
-| etcd | 3.6.11 |
+| crictl | 1.36.0 |
+| Helm | 4.2.2 |
+| Cilium CLI | 0.19.5 |
+| etcd | 3.6.12 |
 
 ## Usage
 
-Create an inventory file at `inventory/custom` (untracked by git):
-
-```ini
-[kubernetes_nodes]
-node-0.local
-node-1.local
-node-2.local
-```
-
-Optionally create `overrides.yaml` (untracked by git) to set Docker Hub credentials and avoid pull rate limits:
+Edit `inventory.yaml` with your target hosts:
 
 ```yaml
-docker_hub_user: "myuser"
+  children:
+    kubernetes_nodes:
+      hosts:
+        kube-1.local: {}
+        kube-2.local: {}
+```
+
+Optionally create `overrides.yaml` (untracked by git) to set Tailscale and Docker Hub credentials:
+
+```yaml
+tailscale_auth_key: "tskey-auth-..."   # enables and authenticates Tailscale
+docker_hub_user: "myuser"              # avoids Docker Hub pull rate limits
 docker_hub_token: "mytoken"
 ```
 
