@@ -23,6 +23,7 @@ skipPhases:
 ---
 apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
+clusterName: "{{ cluster_name }}"
 kubernetesVersion: "v{{ kubernetes_version }}.0"
 # Workers use this address for the join apiServerEndpoint. Must be the
 # Tailscale IP — hostname resolution is not available without MagicDNS.
