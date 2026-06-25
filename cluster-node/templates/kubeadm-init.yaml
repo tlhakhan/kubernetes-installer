@@ -40,4 +40,8 @@ apiServer:
     # If a new control plane node is added later, its Tailscale IP will not be
     # in this cert — run `kubeadm certs renew apiserver` with updated SANs.
     - "{{ tailscale_ip }}"
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+serverTLSBootstrap: true
 ...
