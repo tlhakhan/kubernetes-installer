@@ -4,7 +4,7 @@ all:
     cluster_name: "kubernetes"
     kubernetes_version: "1.34"
     cilium_version: "1.19.3"
-    tailscale_operator_version: "1.84.0"
+    tailscale_operator_version: "1.98.4"
     ingress_nginx_version: "4.12.3"
     metrics_server_version: "3.12.2"
     tailscale_oauth_client_id: ""
