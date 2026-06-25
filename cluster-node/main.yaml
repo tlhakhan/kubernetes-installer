@@ -190,10 +190,6 @@
             - overrides.yaml
           skip: true
   tasks:
-    - name: Add Tailscale Helm repo
-      command: helm repo add tailscale https://pkgs.tailscale.com/helmcharts
-      changed_when: false
-
     - name: Add ingress-nginx Helm repo
       command: helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
       changed_when: false
@@ -205,17 +201,6 @@
     - name: Update Helm repos
       command: helm repo update
       changed_when: false
-
-    - name: Install Tailscale Operator
-      command: >-
-        helm upgrade --install tailscale-operator tailscale/tailscale-operator
-        --version {{ tailscale_operator_version }}
-        --namespace tailscale
-        --create-namespace
-        --set oauth.clientId={{ tailscale_oauth_client_id }}
-        --set oauth.clientSecret={{ tailscale_oauth_client_secret }}
-        --wait
-      no_log: true
 
     - name: Install ingress-nginx
       command: >-
