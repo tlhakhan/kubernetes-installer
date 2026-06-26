@@ -18,6 +18,5 @@ all:
   children:
     kubernetes_nodes:
       hosts:
-        kube-1.local: {}
-        kube-2.local: {}
+        cluster-1.local: {}
         cluster-2.local: {}

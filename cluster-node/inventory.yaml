@@ -6,16 +6,16 @@ all:
     cilium_version: "1.19.3"
     ingress_nginx_version: "4.12.3"
     metrics_server_version: "3.12.2"
-
+    gateway_api_version: "1.2.1"
   children:
     bootstrap_node:
       hosts:
-        kube-1.local:
+        cluster-1.local:
+          cluster_name: "cluster-1"
           controlplane_schedulable: true
         cluster-2.local:
           cluster_name: "cluster-2"
           controlplane_schedulable: true
 
     worker_nodes:
-      hosts:
-        kube-2.local: {}
+      hosts: {}
