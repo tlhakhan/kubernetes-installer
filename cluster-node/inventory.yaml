@@ -7,6 +7,7 @@ all:
     ingress_nginx_version: "4.12.3"
     metrics_server_version: "3.12.2"
     gateway_api_version: "1.2.1"
+    local_path_provisioner_version: "0.0.36"
   children:
     bootstrap_node:
       hosts:

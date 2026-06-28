@@ -198,3 +198,13 @@
         helm upgrade --install metrics-server metrics-server/metrics-server
         --version {{ metrics_server_version }}
         -n kube-system
+
+    - name: Install local-path-provisioner
+      command: kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v{{ local_path_provisioner_version }}/deploy/local-path-storage.yaml
+      changed_when: true
+
+    - name: Set local-path as default StorageClass
+      command: >-
+        kubectl patch storageclass local-path
+        -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+      changed_when: true
